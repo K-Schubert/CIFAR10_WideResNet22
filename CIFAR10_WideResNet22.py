@@ -30,7 +30,6 @@ valid_ds = ImageFolder(data_dir+'/test', valid_tfms)
 batch_size = 256
 
 # PyTorch data loaders
-# PyTorch data loaders
 train_dl = DataLoader(train_ds, batch_size, shuffle=True, num_workers=8, pin_memory=True)
 valid_dl = DataLoader(valid_ds, batch_size, shuffle=False, num_workers=8, pin_memory=True)
 
@@ -105,19 +104,23 @@ from fastai.basic_data import DataBunch
 from fastai.train import Learner
 from fastai.metrics import accuracy
 
-data = DataBunch(train_dl, valid_dl)
+data = DataBunch.create(train_ds, valid_ds, bs=batch_size, path='./data/cifar10')
 learner = Learner(data, model, loss_func=F.cross_entropy, metrics=[accuracy])
 learner.clip = 0.1 # gradient is clipped to be in range of [-0.1, 0.1]
 
 # Find best learning rate
 learner.lr_find()
-learner.recorder.plot() # select lr with largest negative gradient (about 10e-3)
+learner.recorder.plot() # select lr with largest negative gradient (about 5e-3)
 
 # Training
+epochs = 1
+lr = 5e-3
+wd = 1e-4
+
 import time
 
 t0 = time.time()
-learner.fit_one_cycle(9, 5e-3, wd=1e-4) # wd is the lambda in l2 regularization
+learner.fit_one_cycle(epochs, lr, wd=wd) # wd is the lambda in l2 regularization
 t1 = time.time()
 
 print('time: ', t1-t0)
@@ -127,11 +130,36 @@ learner.recorder.plot_lr()
 learner.recorder.plot_losses()
 learner.recorder.plot_metrics()
 
-{'arch':'wrn22', 'lr':5e-3, 'epochs':9, 'one_cycle':True, 'wd':1e-4, }
-{'train_loss': 0.179152, 'val_loss': 0.265154, 'val_acc': 0.909700, 'time': '08:51'}
-
 torch.save(model.state_dict(), 'cifar10-wrn22.pth')
 
+hyper_params = {
+	'arch': str(model),
+    'num_epochs': epochs,
+    'opt_func': 'Adam',
+    'batch_size': batch_size,
+    'lr': lr,
+    'scheduler': 'one-cycle',
+    'weight_decay': wd,
+    'grad_clip': learner.clip
+}
 
+'''
+metrics = {
+    'train_loss': history[-1].get('train_loss'),
+	'val_acc': history[-1].get('val_acc'),
+	'val_loss': history[-1].get('val_loss'),
+	'time': t1-t0
+}
+'''
+
+import json
+
+with open('hyper_params.json', 'w') as fp:
+    json.dump(hyper_params, fp)
+
+'''
+with open('metrics.json', 'w') as fp:
+    json.dump(metrics, fp)
+'''
 
 
